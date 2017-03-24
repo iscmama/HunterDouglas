@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/white"
+    android:padding="20px">
+    <ImageView
+        android:src="@drawable/logo_selector_hd"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/imageView1" />
+    <TextView
+        android:text="Usuario"
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/textView1"
+        android:textColor="@android:color/black" />
+    <EditText
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/editText1"
+        android:textColor="@android:color/white"
+        android:textColorHint="@android:color/white"
+        android:hint="Ingrese su correo"
+        android:background="@android:color/black"
+        android:padding="15px" />
+    <TextView
+        android:text="Contraseña"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/textView2"
+        android:textColor="@android:color/black"
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:layout_marginTop="10px" />
+    <EditText
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/editText2"
+        android:password="true"
+        android:textColor="@android:color/white"
+        android:textColorHint="@android:color/white"
+        android:hint="Ingrese su password"
+        android:background="@android:color/black"
+        android:padding="15px" />
+    <Button
+        android:text="Ingresar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/button1"
+        android:background="@drawable/custom_button"
+        style="@style/button_text"
+        android:layout_marginTop="25px" />
+    <TextView
+        android:text="V 3.0"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/textView3"
+        android:gravity="right"
+        android:textColor="@android:color/black" />
+</LinearLayout>

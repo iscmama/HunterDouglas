@@ -28,88 +28,81 @@ namespace Hunter_App
 
         protected override void OnCreate(Bundle bundle)
         {
-            base.OnCreate(bundle);
-
-            SetContentView(Resource.Layout.Main);
-
-            // Get our button from the layout resource,
-            // and attach an event to it
-            Button button = FindViewById<Button>(Resource.Id.button1);
-            EditText textoUsuario = FindViewById<EditText>(Resource.Id.editText1);
-            EditText textoPassword = FindViewById<EditText>(Resource.Id.editText2);
-
-            string usuarioinformacion = Intent.GetStringExtra("usuarioinformacion") ?? string.Empty;
-
-            if (!string.IsNullOrEmpty(usuarioinformacion))
+            try
             {
-                UsuarioBO resultado = Newtonsoft.Json.JsonConvert.DeserializeObject<UsuarioBO>(usuarioinformacion);
+                base.OnCreate(bundle);
 
-                if (resultado != null && !string.IsNullOrEmpty(resultado.Usuario) && !string.IsNullOrEmpty(resultado.Password))
+                SetContentView(Resource.Layout.Main);
+
+                // Get our button from the layout resource,
+                // and attach an event to it
+                Button button = FindViewById<Button>(Resource.Id.button1);
+                EditText textoUsuario = FindViewById<EditText>(Resource.Id.editText1);
+                EditText textoPassword = FindViewById<EditText>(Resource.Id.editText2);
+
+                string usuarioinformacion = Intent.GetStringExtra("usuarioinformacion") ?? string.Empty;
+
+                if (!string.IsNullOrEmpty(usuarioinformacion))
                 {
-                    textoUsuario.Text = resultado.Usuario;
-                    textoPassword.Text = resultado.Password;
-                }
-            }
+                    UsuarioBO resultado = Newtonsoft.Json.JsonConvert.DeserializeObject<UsuarioBO>(usuarioinformacion);
 
-            //textoUsuario.Text = "jallier@hdmexico.onmicrosoft.com";
-            //textoPassword.Text = "HDMirage2016";
-
-            //textoUsuario.Text = "cdelacruz@hdmexico.onmicrosoft.com";
-            //textoPassword.Text = "Pa$$w0rd";
-
-            //textoUsuario.Text = "asesorhd@hdmexico.onmicrosoft.com";
-            //textoPassword.Text = "Pa$$w0rd";
-
-            //textoUsuario.Text = "ksegovia@hdmexico.onmicrosoft.com";
-            //textoPassword.Text = "Passw0rd";
-
-            //textoUsuario.Text = "cgalvez@hdmexico.onmicrosoft.com";
-            //textoPassword.Text = "HDMexico1";
-
-            button.Click += delegate 
-            {
-                if (string.IsNullOrEmpty(textoUsuario.Text))
-                {
-                    Toast.MakeText(this, "Ingrese su usuario...", ToastLength.Long).Show();
-                    return;
+                    if (resultado != null && !string.IsNullOrEmpty(resultado.Usuario) && !string.IsNullOrEmpty(resultado.Password))
+                    {
+                        textoUsuario.Text = resultado.Usuario;
+                        textoPassword.Text = resultado.Password;
+                    }
                 }
 
-                if (string.IsNullOrEmpty(textoPassword.Text))
+                button.Click += async delegate
                 {
-                    Toast.MakeText(this, "Ingrese su contraseña...", ToastLength.Long).Show();
-                    return;
-                }
+                    button.Enabled = false;
 
-                if (!GetIsInternetAccessAvailable())
-                {
-                    Toast.MakeText(context, "Sin Acceso a Internet. Verifique", ToastLength.Long).Show();
-                    return;
-                }
+                    if (string.IsNullOrEmpty(textoUsuario.Text))
+                    {
+                        Toast.MakeText(this, "Ingrese su usuario...", ToastLength.Long).Show();
+                        button.Enabled = true;
+                        return;
+                    }
 
-                if (!IsHostReachable())
-                {
-                    Toast.MakeText(context, "Sin comunicación con el Servicio. Verifique", ToastLength.Long).Show();
-                    return;
-                }
+                    if (string.IsNullOrEmpty(textoPassword.Text))
+                    {
+                        Toast.MakeText(this, "Ingrese su contraseña...", ToastLength.Long).Show();
+                        button.Enabled = true;
+                        return;
+                    }
 
-                progress = new ProgressDialog(this);
-                progress.Indeterminate = true;
-                progress.SetProgressStyle(ProgressDialogStyle.Spinner);
-                progress.SetMessage("Validando información...");
-                progress.SetCancelable(false);
-                progress.Show();
+                    if (!GetIsInternetAccessAvailable())
+                    {
+                        Toast.MakeText(context, "Sin Acceso a Internet. Verifique", ToastLength.Long).Show();
+                        button.Enabled = true;
+                        return;
+                    }
 
-                new Thread(new ThreadStart(async delegate
-                {
-                    //string resultado = SignInUser(textoUsuario.Text, textoPassword.Text);
+                    if (!IsHostReachable())
+                    {
+                        Toast.MakeText(context, "Sin comunicación con el Servicio. Verifique", ToastLength.Long).Show();
+                        button.Enabled = true;
+                        return;
+                    }
+
+                    progress = new ProgressDialog(this);
+                    progress.Indeterminate = true;
+                    progress.SetProgressStyle(ProgressDialogStyle.Spinner);
+                    progress.SetMessage("Validando información...");
+                    progress.SetCancelable(false);
+                    progress.Show();
+
                     string resultado = await LogInuser(textoUsuario.Text, textoPassword.Text);
 
                     if (string.IsNullOrEmpty(resultado))
                     {
                         var intent = new Intent(this, typeof(ProcesoPrincipalActivity));
                         intent.PutExtra("contenido", contenido);
+
                         RunOnUiThread(() =>
                         {
+                            button.Enabled = true;
+                            progress.SetMessage("Cargando contenido...");
                             progress.Hide();
                             progress.Dispose();
                             StartActivity(intent);
@@ -119,13 +112,20 @@ namespace Hunter_App
                     {
                         RunOnUiThread(() =>
                         {
+                            button.Enabled = true;
                             progress.Hide();
                             progress.Dispose();
                             Toast.MakeText(this, resultado, ToastLength.Long).Show();
                         });
                     }
-                })).Start();
-            };
+                };
+            }
+            catch (Exception ex)
+            {
+                progress.Hide();
+                progress.Dispose();
+                Toast.MakeText(context, "La aplicación tuvo un incoveniente. Intente más tarde. Error: " + ex.Message, ToastLength.Long).Show();
+            }
         }
 
         protected override void OnResume()
@@ -139,7 +139,7 @@ namespace Hunter_App
             }
         }
 
-        private string SignInUser(string usuario,string password)
+        private string SignInUser(string usuario, string password)
         {
             string mensaje = string.Empty;
             //cdelacruz@hdmexico.onmicrosoft.com
@@ -223,36 +223,47 @@ namespace Hunter_App
 
                 var uri = new System.Uri(urlService);
 
-                HttpClient client = new HttpClient();
-
-                var json = JsonConvert.SerializeObject(new UsuarioBO { Usuario = usuario, Password = password });
-                var contentParams = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await client.PostAsync(uri, contentParams);
-
-                if (response.IsSuccessStatusCode)
+                using (HttpClient client = new HttpClient())
                 {
-                    var content = await response.Content.ReadAsStringAsync();
-                    AutenticarUsuarioResult resultado = JsonConvert.DeserializeObject<AutenticarUsuarioResult>(content);
+                    client.Timeout = TimeSpan.FromSeconds(180);
 
-                    if (resultado != null)
+                    var json = JsonConvert.SerializeObject(new UsuarioBO { Usuario = usuario, Password = password });
+                    var contentParams = new StringContent(json, Encoding.UTF8, "application/json");
+
+                    var response = await client.PostAsync(uri, contentParams);
+
+                    if (response.IsSuccessStatusCode)
                     {
-                        if (resultado.autenticado)
+                        var content = await response.Content.ReadAsStringAsync();
+                        AutenticarUsuarioResult resultado = JsonConvert.DeserializeObject<AutenticarUsuarioResult>(content);
+
+                        if (resultado != null)
                         {
-                            mensaje = resultado.mensaje;
-                            contenido = content;
+                            if (resultado.autenticado)
+                            {
+                                mensaje = resultado.mensaje;
+                                contenido = content;
+                            }
+                            else
+                            {
+                                mensaje = "Usuario/Contraseña incorrectas...";
+                            }
                         }
                         else
                         {
-                            mensaje = "Usuario/Contraseña incorrectas...";
+                            mensaje = "Sin respuesta del servicio. Intente más tarde";
                         }
+                    }
+                    else
+                    {
+                        mensaje = "El servicio no respondio de forma satisfactoria. Intente más tarde";
                     }
                 }
             }
             catch (Exception ex)
             {
+                mensaje = "Problemas al consumir el servicio. Error: " + ex.Message;
                 Log.Debug(TAG, "Error en el metodo LogInuser: {0}", ex.Message);
-                Toast.MakeText(context, "Error al consumir el servicio", ToastLength.Long).Show();
             }
 
             return mensaje;

@@ -25,6 +25,7 @@ namespace Hunter_App
         static string contenido = string.Empty;
         static readonly string TAG = typeof(MainActivity).FullName;
         Context context = Application.Context;
+        bool isInCall = false;
 
         protected override void OnCreate(Bundle bundle)
         {
@@ -56,37 +57,50 @@ namespace Hunter_App
                 button.Click += async delegate
                 {
                     button.Enabled = false;
+                  
+                    if (isInCall)
+                    {
+                        Toast.MakeText(this, "Su Solicitud se esta procesando...", ToastLength.Short).Show();
+                        button.Enabled = true;
+                        return;
+                    }
+
+                    isInCall = true;
 
                     if (string.IsNullOrEmpty(textoUsuario.Text))
                     {
-                        Toast.MakeText(this, "Ingrese su usuario...", ToastLength.Long).Show();
+                        Toast.MakeText(this, "Ingrese su usuario...", ToastLength.Short).Show();
                         button.Enabled = true;
+                        isInCall = false;
                         return;
                     }
 
                     if (string.IsNullOrEmpty(textoPassword.Text))
                     {
-                        Toast.MakeText(this, "Ingrese su contraseña...", ToastLength.Long).Show();
+                        Toast.MakeText(this, "Ingrese su contraseña...", ToastLength.Short).Show();
                         button.Enabled = true;
+                        isInCall = false;
                         return;
                     }
 
                     if (!GetIsInternetAccessAvailable())
                     {
-                        Toast.MakeText(context, "Sin Acceso a Internet. Verifique", ToastLength.Long).Show();
+                        Toast.MakeText(context, "Sin Acceso a Internet. Verifique", ToastLength.Short).Show();
                         button.Enabled = true;
+                        isInCall = false;
                         return;
                     }
 
                     if (!IsHostReachable())
                     {
-                        Toast.MakeText(context, "Sin comunicación con el Servicio. Verifique", ToastLength.Long).Show();
+                        Toast.MakeText(context, "Sin comunicación con el Servicio. Verifique", ToastLength.Short).Show();
                         button.Enabled = true;
+                        isInCall = false;
                         return;
                     }
 
                     progress = new ProgressDialog(this);
-                    progress.Indeterminate = true;
+                    progress.Indeterminate = false;
                     progress.SetProgressStyle(ProgressDialogStyle.Spinner);
                     progress.SetMessage("Validando información...");
                     progress.SetCancelable(false);
@@ -102,6 +116,7 @@ namespace Hunter_App
                         RunOnUiThread(() =>
                         {
                             button.Enabled = true;
+                            isInCall = false;
                             progress.SetMessage("Cargando contenido...");
                             progress.Hide();
                             progress.Dispose();
@@ -113,6 +128,7 @@ namespace Hunter_App
                         RunOnUiThread(() =>
                         {
                             button.Enabled = true;
+                            isInCall = false;
                             progress.Hide();
                             progress.Dispose();
                             Toast.MakeText(this, resultado, ToastLength.Long).Show();
@@ -122,8 +138,7 @@ namespace Hunter_App
             }
             catch (Exception ex)
             {
-                progress.Hide();
-                progress.Dispose();
+                isInCall = false;
                 Toast.MakeText(context, "La aplicación tuvo un incoveniente. Intente más tarde. Error: " + ex.Message, ToastLength.Long).Show();
             }
         }

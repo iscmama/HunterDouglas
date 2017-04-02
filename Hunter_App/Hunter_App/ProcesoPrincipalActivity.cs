@@ -33,161 +33,210 @@ namespace Hunter_App
         string usuarioinformacion = string.Empty;
         static readonly string TAG = typeof(ProcesoPrincipalActivity).FullName;
         Context context = Application.Context;
+        double timeOutClient = 180;
+        bool isInCall = false;
 
         protected override void OnCreate(Bundle savedInstanceState)
         {
-            base.OnCreate(savedInstanceState);
-            SetContentView(Resource.Layout.ProcesoPrincipalActivity);
-
-            string contenido = Intent.GetStringExtra("contenido") ?? string.Empty;
-
-            if (!string.IsNullOrEmpty(contenido))
+            try
             {
-                AutenticarUsuarioResult resultado = Newtonsoft.Json.JsonConvert.DeserializeObject<AutenticarUsuarioResult>(contenido);
-                citas = resultado.lista;
+                base.OnCreate(savedInstanceState);
+                SetContentView(Resource.Layout.ProcesoPrincipalActivity);
 
-                if (citas != null && citas.Any())
+                string contenido = Intent.GetStringExtra("contenido") ?? string.Empty;
+
+                if (!string.IsNullOrEmpty(contenido))
                 {
-                    UsuarioBO usuario = new UsuarioBO { Usuario = citas[0].Usuario, Password = citas[0].Password };
-                    usuarioinformacion = Newtonsoft.Json.JsonConvert.SerializeObject(usuario);
+                    AutenticarUsuarioResult resultado = Newtonsoft.Json.JsonConvert.DeserializeObject<AutenticarUsuarioResult>(contenido);
+                    citas = resultado.lista;
+
+                    if (citas != null && citas.Any())
+                    {
+                        UsuarioBO usuario = new UsuarioBO { Usuario = citas[0].Usuario, Password = citas[0].Password };
+                        usuarioinformacion = Newtonsoft.Json.JsonConvert.SerializeObject(usuario);
+                    }
                 }
-            }
 
-            Spinner spinner = FindViewById<Spinner>(Resource.Id.spinner1);
-            spinner.Adapter = new CitasAdapter(this, citas);
-            spinner.ItemSelected += new EventHandler<AdapterView.ItemSelectedEventArgs>(spinner_ItemSelected);
+                Spinner spinner = FindViewById<Spinner>(Resource.Id.spinner1);
+                spinner.Adapter = new CitasAdapter(this, citas);
+                spinner.ItemSelected += new EventHandler<AdapterView.ItemSelectedEventArgs>(spinner_ItemSelected);
 
-            Button btnCheckin = FindViewById<Button>(Resource.Id.button1);
-            Button btnCheckout = FindViewById<Button>(Resource.Id.button2);
-            Button btnCrm = FindViewById<Button>(Resource.Id.button3);
+                Button btnCheckin = FindViewById<Button>(Resource.Id.button1);
+                Button btnCheckout = FindViewById<Button>(Resource.Id.button2);
+                Button btnCrm = FindViewById<Button>(Resource.Id.button3);
 
-            #region btnCheckIn
-            btnCheckin.Click += delegate
-            {
-                try
+                #region btnCheckIn
+
+                btnCheckin.Click += async delegate
                 {
-                    if (!GetIsInternetAccessAvailable())
+                    btnCheckin.Enabled = false;
+
+                    if (isInCall)
                     {
-                        Toast.MakeText(context, "Sin Acceso a Internet. Verifique", ToastLength.Long).Show();
+                        Toast.MakeText(this, "Su Solicitud se esta procesando...", ToastLength.Short).Show();
+                        btnCheckin.Enabled = true;
                         return;
                     }
 
-                    if (!IsHostReachable())
-                    {
-                        Toast.MakeText(context, "Sin comunicación con el Servicio. Verifique", ToastLength.Long).Show();
-                        return;
-                    }
+                    isInCall = true;
 
-                    if (citaSeleccionada != null)
+                    try
                     {
-                        progress = new ProgressDialog(this);
-                        progress.Indeterminate = true;
-                        progress.SetProgressStyle(ProgressDialogStyle.Spinner);
-                        progress.SetMessage("Realizando Check-In...");
-                        progress.SetCancelable(false);
-                        progress.Show();
-
-                        new Thread(new ThreadStart(async delegate
+                        if (!GetIsInternetAccessAvailable())
                         {
-                            try
+                            Toast.MakeText(context, "Sin Acceso a Internet. Verifique", ToastLength.Short).Show();
+                            btnCheckin.Enabled = true;
+                            isInCall = false;
+                            return;
+                        }
+
+                        if (!IsHostReachable())
+                        {
+                            Toast.MakeText(context, "Sin comunicación con el Servicio. Verifique", ToastLength.Short).Show();
+                            btnCheckin.Enabled = true;
+                            isInCall = false;
+                            return;
+                        }
+
+                        if (citaSeleccionada != null)
+                        {
+                            progress = new ProgressDialog(this);
+                            progress.Indeterminate = false;
+                            progress.SetProgressStyle(ProgressDialogStyle.Spinner);
+                            progress.SetMessage("Realizando Check-In...");
+                            progress.SetCancelable(false);
+                            progress.Show();
+
+                            var locator = CrossGeolocator.Current;
+                            locator.DesiredAccuracy = 1;
+                            var position = await locator.GetPositionAsync(timeoutMilliseconds: 10000);
+
+                            if (position != null)
                             {
-                                #region realiza proceso
-                                var locator = CrossGeolocator.Current;
-                                locator.DesiredAccuracy = 1;
-                                var position = await locator.GetPositionAsync(timeoutMilliseconds: 10000);
-                                if (position != null)
+                                DateTime momento = DateTime.Now;
+
+                                citaSeleccionada.LatitudInicio = position.Latitude;
+                                citaSeleccionada.LongitudInicio = position.Longitude;
+                                citaSeleccionada.HoraLlegada = momento.ToString("dd/MM/yyyy HH:mm");
+                                citaSeleccionada.year = momento.Year;
+                                citaSeleccionada.month = momento.Month;
+                                citaSeleccionada.day = momento.Day;
+                                citaSeleccionada.hour = momento.Hour;
+                                citaSeleccionada.minute = momento.Minute;
+
+                                string resultado = await DoCheckInAsync();
+
+                                if (string.IsNullOrEmpty(resultado))
                                 {
-                                    DateTime momento = DateTime.Now;
-
-                                    citaSeleccionada.LatitudInicio = position.Latitude;
-                                    citaSeleccionada.LongitudInicio = position.Longitude;
-                                    citaSeleccionada.HoraLlegada = momento.ToString("dd/MM/yyyy HH:mm");
-                                    citaSeleccionada.year = momento.Year;
-                                    citaSeleccionada.month = momento.Month;
-                                    citaSeleccionada.day = momento.Day;
-                                    citaSeleccionada.hour = momento.Hour;
-                                    citaSeleccionada.minute = momento.Minute;
-
-                                    string resultado = await DoCheckInAsync();
-
-                                    if (string.IsNullOrEmpty(resultado))
+                                    RunOnUiThread(() =>
                                     {
-                                        RunOnUiThread(() =>
-                                        {
-                                            progress.Hide();
-                                            progress.Dispose();
-                                            CargaInformacionConResultado("CI");
-                                        });
-                                    }
-                                    else
-                                    {
-                                        RunOnUiThread(() =>
-                                        {
-                                            citaSeleccionada.LatitudInicio = 0;
-                                            citaSeleccionada.LongitudInicio = 0;
-                                            citaSeleccionada.HoraLlegada = string.Empty;
-                                            citaSeleccionada.year = 0;
-                                            citaSeleccionada.month = 0;
-                                            citaSeleccionada.day = 0;
-                                            citaSeleccionada.hour = 0;
-                                            citaSeleccionada.minute = 0;
-
-                                            progress.Hide();
-                                            progress.Dispose();
-                                            AlertDialog.Builder alert = new AlertDialog.Builder(this);
-                                            alert.SetTitle("Información");
-                                            alert.SetMessage(resultado);
-                                            alert.SetPositiveButton("Aceptar", (senderAlert, args) => { });
-                                            Dialog dialog = alert.Create();
-                                            dialog.Show();
-                                        });
-                                    }
+                                        btnCheckin.Enabled = true;
+                                        isInCall = false;
+                                       
+                                        progress.Hide();
+                                        progress.Dispose();
+                                        
+                                        CargaInformacionConResultado("CI");
+                                    });
                                 }
-                                #endregion
+                                else
+                                {
+                                    RunOnUiThread(() =>
+                                    {
+                                        btnCheckin.Enabled = true;
+                                        isInCall = false;
+                                        citaSeleccionada.LatitudInicio = 0;
+                                        citaSeleccionada.LongitudInicio = 0;
+                                        citaSeleccionada.HoraLlegada = string.Empty;
+                                        citaSeleccionada.year = 0;
+                                        citaSeleccionada.month = 0;
+                                        citaSeleccionada.day = 0;
+                                        citaSeleccionada.hour = 0;
+                                        citaSeleccionada.minute = 0;
+
+                                        progress.Hide();
+                                        progress.Dispose();
+
+                                        AlertDialog.Builder alert = new AlertDialog.Builder(this);
+                                        alert.SetTitle("Información");
+                                        alert.SetMessage(resultado);
+                                        alert.SetPositiveButton("Aceptar", (senderAlert, args) => { });
+                                        Dialog dialog = alert.Create();
+                                        dialog.Show();
+                                    });
+                                }
                             }
-                            catch (Exception ex)
+                            else
                             {
-                                Toast.MakeText(this, "Mensaje error thread:" + ex.Message, ToastLength.Long).Show();
+                                btnCheckin.Enabled = true;
+                                isInCall = false;
+                                Toast.MakeText(context, "No se logro optener su posición actual", ToastLength.Long).Show();
+                                return;
                             }
-                        })).Start();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Toast.MakeText(this, "Mensaje error clickCheckIn:" + ex.Message, ToastLength.Long).Show();
-                }
-            };
-            #endregion
-
-            #region btnCheckout
-
-            btnCheckout.Click += delegate
-            {
-                try
-                {
-                    if (!GetIsInternetAccessAvailable())
-                    {
-                        Toast.MakeText(context, "Sin Acceso a Internet. Verifique", ToastLength.Long).Show();
-                        return;
-                    }
-
-                    if (!IsHostReachable())
-                    {
-                        Toast.MakeText(context, "Sin comunicación con el Servicio. Verifique", ToastLength.Long).Show();
-                        return;
-                    }
-
-                    if (citaSeleccionada != null)
-                    {
-                        progress = new ProgressDialog(this);
-                        progress.Indeterminate = true;
-                        progress.SetProgressStyle(ProgressDialogStyle.Spinner);
-                        progress.SetMessage("Realizando Check-Out...");
-                        progress.SetCancelable(false);
-                        progress.Show();
-
-                        new Thread(new ThreadStart(async delegate
+                        }
+                        else
                         {
+                            btnCheckin.Enabled = true;
+                            isInCall = false;
+                            Toast.MakeText(context, "Debe seleccionar una cita", ToastLength.Long).Show();
+                            return;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        progress.Hide();
+                        
+                        btnCheckin.Enabled = true;
+                        isInCall = false;
+                        Toast.MakeText(this, "No se logro realizar el Check In. Intente más tarde. Error: " + ex.Message, ToastLength.Long).Show();
+                    }
+                    
+                };
+
+                #endregion btnCheckIn
+
+                #region btnCheckout
+
+                btnCheckout.Click += async delegate
+                {
+                    btnCheckout.Enabled = false;
+
+                    if (isInCall)
+                    {
+                        Toast.MakeText(this, "Su Solicitud se esta procesando...", ToastLength.Short).Show();
+                        btnCheckout.Enabled = true;
+                        return;
+                    }
+
+                    isInCall = true;
+
+                    try
+                    {
+                        if (!GetIsInternetAccessAvailable())
+                        {
+                            btnCheckout.Enabled = true;
+                            isInCall = false;
+                            Toast.MakeText(context, "Sin Acceso a Internet. Verifique", ToastLength.Long).Show();
+                            return;
+                        }
+
+                        if (!IsHostReachable())
+                        {
+                            btnCheckout.Enabled = true;
+                            isInCall = false;
+                            Toast.MakeText(context, "Sin comunicación con el Servicio. Verifique", ToastLength.Long).Show();
+                            return;
+                        }
+
+                        if (citaSeleccionada != null)
+                        {
+                            progress = new ProgressDialog(this);
+                            progress.Indeterminate = false;
+                            progress.SetProgressStyle(ProgressDialogStyle.Spinner);
+                            progress.SetMessage("Realizando Check-Out...");
+                            progress.SetCancelable(false);
+                            progress.Show();
+
                             var locator = CrossGeolocator.Current;
                             locator.DesiredAccuracy = 1;
                             var position = await locator.GetPositionAsync(timeoutMilliseconds: 10000);
@@ -211,8 +260,12 @@ namespace Hunter_App
                                 {
                                     RunOnUiThread(() =>
                                     {
+                                        btnCheckout.Enabled = true;
+                                        isInCall = false;
+                                       
                                         progress.Hide();
                                         progress.Dispose();
+                                     
                                         CargaInformacionConResultado("CO");
                                     });
                                 }
@@ -220,6 +273,8 @@ namespace Hunter_App
                                 {
                                     RunOnUiThread(() =>
                                     {
+                                        btnCheckout.Enabled = true;
+                                        isInCall = false;
                                         citaSeleccionada.LatitudFin = 0;
                                         citaSeleccionada.LongitudFin = 0;
                                         citaSeleccionada.HoraSalida = string.Empty;
@@ -231,6 +286,7 @@ namespace Hunter_App
 
                                         progress.Hide();
                                         progress.Dispose();
+
                                         AlertDialog.Builder alert = new AlertDialog.Builder(this);
                                         alert.SetTitle("Información");
                                         alert.SetMessage(resultado);
@@ -240,50 +296,88 @@ namespace Hunter_App
                                     });
                                 }
                             }
-                        })).Start();
+                            else
+                            {
+                                btnCheckout.Enabled = true;
+                                isInCall = false;
+                                Toast.MakeText(context, "No se logro optener su posición actual", ToastLength.Long).Show();
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            btnCheckout.Enabled = true;
+                            isInCall = false;
+                            Toast.MakeText(context, "Debe seleccionar una cita", ToastLength.Long).Show();
+                            return;
+                        }
                     }
-                }
-                catch (Exception ex)
-                {
-                    Toast.MakeText(this, "Mensaje error clickCheckOut:" + ex.Message, ToastLength.Long).Show();
-                }
-            };
-            #endregion
+                    catch (Exception ex)
+                    {
+                        progress.Hide();
+                        btnCheckout.Enabled = true;
+                        isInCall = false;
+                        Toast.MakeText(this, "No se logro realizar el Check Out. Intente más tarde. Error: " + ex.Message, ToastLength.Long).Show();
+                    }
+                };
 
-            #region btnCRM
-            btnCrm.Click += delegate
-            {
-                try
+                #endregion btnCheckout
+
+                #region btnCRM
+
+                btnCrm.Click += delegate
                 {
-                    var existIntent = ApplicationContext.PackageManager.GetLaunchIntentForPackage("com.microsoft.crm.crmhost");
-                    //var existIntent = ApplicationContext.PackageManager.GetLaunchIntentForPackage("com.whatsapp");
-                    if (existIntent != null)
+                    try
                     {
-                        StartActivity(existIntent);
-                    }
-                    else
-                    {
-                        existIntent = ApplicationContext.PackageManager.GetLaunchIntentForPackage("com.microsoft.crm.crmphone");
+                        var existIntent = ApplicationContext.PackageManager.GetLaunchIntentForPackage("com.microsoft.crm.crmhost");
+                        //var existIntent = ApplicationContext.PackageManager.GetLaunchIntentForPackage("com.whatsapp");
+
                         if (existIntent != null)
                         {
                             StartActivity(existIntent);
                         }
                         else
                         {
-                            var uri = Android.Net.Uri.Parse("market://details?id=com.microsoft.crm.crmhost");
-                            var intent = new Intent(Intent.ActionView, uri);
-                            StartActivity(intent);
+                            existIntent = ApplicationContext.PackageManager.GetLaunchIntentForPackage("com.microsoft.crm.crmphone");
+
+                            if (existIntent != null)
+                            {
+                                StartActivity(existIntent);
+                            }
+                            else
+                            {
+                                var uri = Android.Net.Uri.Parse("market://details?id=com.microsoft.crm.crmhost");
+                                var intent = new Intent(Intent.ActionView, uri);
+                                StartActivity(intent);
+                            }
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    Toast.MakeText(this, "Mensaje error clickCRM:" + ex.Message, ToastLength.Long).Show();
-                }
-            };
-            #endregion
+                    catch (Exception ex)
+                    {
+                        Toast.MakeText(this, "No se pudo abrir Dynamics CRM. Intente más tarde. Error: " + ex.Message, ToastLength.Long).Show();
+                        return;
+                    }
+                };
 
-            AndroidEnvironment.UnhandledExceptionRaiser += new EventHandler<RaiseThrowableEventArgs>(AndroidEnvironment_UnhandledExceptionRaiser);
+                #endregion btnCRM
+
+                AndroidEnvironment.UnhandledExceptionRaiser += new EventHandler<RaiseThrowableEventArgs>(AndroidEnvironment_UnhandledExceptionRaiser);
+            }
+            catch (Exception ex)
+            {
+                Toast.MakeText(context, "La aplicación tuvo un incoveniente. Intente más tarde. Error: " + ex.Message, ToastLength.Long).Show();
+            }
+        }
+
+        protected override void OnResume()
+        {
+            base.OnResume();
+
+            if (!GetIsInternetAccessAvailable())
+            {
+                Toast.MakeText(context, "Sin Acceso a Internet. Verifique", ToastLength.Long).Show();
+                return;
+            }
         }
 
         void AndroidEnvironment_UnhandledExceptionRaiser(object sender, RaiseThrowableEventArgs e)
@@ -549,23 +643,30 @@ namespace Hunter_App
 
                 var uri = new System.Uri(urlService);
 
-                HttpClient client = new HttpClient();
-
-                var json = JsonConvert.SerializeObject(citaSeleccionada);
-                var contentParams = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await client.PostAsync(uri, contentParams);
-
-                if (response.IsSuccessStatusCode)
+                using (HttpClient client = new HttpClient())
                 {
-                    var content = await response.Content.ReadAsStringAsync();
-                    mensaje = JsonConvert.DeserializeObject<string>(content);
+                    client.Timeout = TimeSpan.FromSeconds(timeOutClient);
+
+                    var json = JsonConvert.SerializeObject(citaSeleccionada);
+                    var contentParams = new StringContent(json, Encoding.UTF8, "application/json");
+
+                    var response = await client.PostAsync(uri, contentParams);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var content = await response.Content.ReadAsStringAsync();
+                        mensaje = JsonConvert.DeserializeObject<string>(content);
+                    }
+                    else
+                    {
+                        mensaje = "El servicio no respondio de forma satisfactoria. Intente más tarde";
+                    }
                 }
             }
             catch (Exception ex)
             {
+                mensaje = "No se pudo realizar el Check In. Intente más tarde. Error: " + ex.Message;
                 Log.Debug(TAG, "Error en el metodo DoCheckInAsync{0}", ex.Message);
-                mensaje = "No se pudo realizar el Check In. Intente más tarde";
             }
 
             return mensaje;
@@ -581,23 +682,30 @@ namespace Hunter_App
 
                 var uri = new System.Uri(urlService);
 
-                HttpClient client = new HttpClient();
-
-                var json = JsonConvert.SerializeObject(citaSeleccionada);
-                var contentParams = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await client.PostAsync(uri, contentParams);
-
-                if (response.IsSuccessStatusCode)
+                using (HttpClient client = new HttpClient())
                 {
-                    var content = await response.Content.ReadAsStringAsync();
-                    mensaje = JsonConvert.DeserializeObject<string>(content);
+                    client.Timeout = TimeSpan.FromSeconds(timeOutClient);
+
+                    var json = JsonConvert.SerializeObject(citaSeleccionada);
+                    var contentParams = new StringContent(json, Encoding.UTF8, "application/json");
+
+                    var response = await client.PostAsync(uri, contentParams);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var content = await response.Content.ReadAsStringAsync();
+                        mensaje = JsonConvert.DeserializeObject<string>(content);
+                    }
+                    else
+                    {
+                        mensaje = "El servicio no respondio de forma satisfactoria. Intente más tarde";
+                    }
                 }
             }
             catch (Exception ex)
             {
+                mensaje = "No se pudo realizar el Check Out. Intente más tarde. Error: " + ex.Message;
                 Log.Debug(TAG, "Error en el metodo DoCheckOutAsync{0}", ex.Message);
-                mensaje = "No se pudo realizar el Check Out. Intente más tarde";
             }
 
             return mensaje;

@@ -53,7 +53,7 @@
         style="@style/button_text"
         android:layout_marginTop="25px" />
     <TextView
-        android:text="V 3.0"
+        android:text="V 3.1"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:id="@+id/textView3"
